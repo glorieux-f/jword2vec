@@ -38,12 +38,12 @@ public class Word2VecBinTest {
       throws IOException, UnknownWordException {
     File binFile = Common.getResourceAsFile(
             this.getClass(),
-            "/com/medallia/word2vec/tokensModel.bin");
+            "tokensModel.bin");
     Word2VecModel binModel = Word2VecModel.fromBinFile(binFile);
 
     File txtFile = Common.getResourceAsFile(
             this.getClass(),
-            "/com/medallia/word2vec/tokensModel.txt");
+            "tokensModel.txt");
     Word2VecModel txtModel = Word2VecModel.fromTextFile(txtFile);
 
     assertEquals(binModel, txtModel);

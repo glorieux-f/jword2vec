@@ -1,25 +1,10 @@
-# Word2vecJava
+# jword2vec
 
-[![Build Status](https://travis-ci.org/medallia/Word2VecJava.svg?branch=master)](https://travis-ci.org/medallia/Word2VecJava)
+This is a fork updated of [https://github.com/medallia/Word2VecJava], not yet published.
 
-This is a port of the open source C implementation of word2vec (https://code.google.com/p/word2vec/). You can browse/contribute the repository via [Github](https://github.com/medallia/Word2VecJava). Alternatively you can pull it from the central Maven repositories:
-```XML
-<dependency>
-  <groupId>com.medallia.word2vec</groupId>
-  <artifactId>Word2VecJava</artifactId>
-  <version>0.10.3</version>
-</dependency>
-```
 
-For more background information about word2vec and neural network training for the vector representation of words, please see the following papers.
-* http://ttic.uchicago.edu/~haotang/speech/1301.3781.pdf
-* http://papers.nips.cc/paper/5021-distributed-representations-of-words-and-phrases-and-their-compositionality.pdf
-
-For comprehensive explanation of the training process (the gradiant descent formula calculation in the back propagation training), please see:
-* http://www-personal.umich.edu/~ronxin/pdf/w2vexp.pdf
-
-Note that this isn't a completely faithful rewrite, specifically: 
-
+## Notes from com.medallia.word2vec
+This is a port of the open source C implementation of word2vec (https://code.google.com/p/word2vec/).
 ### When building the vocabulary from the training file:
 1. The original version does a reduction step when learning the vocabulary from the file when the vocab size hits 21 million words, removing any words that do not meet the minimum frequency threshold. This Java port has no such reduction step.
 2. The original version injects a </s> token into the vocabulary (with a word count of 0) as a substitute for newlines in the input file. This Java port's vocabulary excludes the token.
@@ -41,21 +26,10 @@ Note: The k-means clustering option is excluded in the Java port
 
 Please do not hesitate to peek at the source code. It should be readable, concise, and correct. Please feel free to reach out if it is not.
 
-## Building the Project
-To verify that the project is building correctly, run 
-```bash
-./gradlew build && ./gradlew test
-```
+### References
+For more background information about word2vec and neural network training for the vector representation of words, please see the following papers.
+* http://ttic.uchicago.edu/~haotang/speech/1301.3781.pdf
+* http://papers.nips.cc/paper/5021-distributed-representations-of-words-and-phrases-and-their-compositionality.pdf
 
-It should run 7 tests without any error.
-
-Note: this project requires gradle 2.2+, if you are using older version of gradle, please upgrade it and run:
-```bash
-./gradlew clean test
-```
-
-to have a clean build and re-run the tests.
-
-
-## Contact
-Andrew Ko (wko27code@gmail.com)
+For comprehensive explanation of the training process (the gradiant descent formula calculation in the back propagation training), please see:
+* http://www-personal.umich.edu/~ronxin/pdf/w2vexp.pdf

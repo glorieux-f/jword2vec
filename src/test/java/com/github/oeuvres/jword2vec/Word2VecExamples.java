@@ -7,7 +7,6 @@ import com.github.oeuvres.jword2vec.neuralnetwork.NeuralNetworkType;
 import com.github.oeuvres.jword2vec.util.AutoLog;
 import com.github.oeuvres.jword2vec.util.Common;
 import com.github.oeuvres.jword2vec.util.Format;
-import com.github.oeuvres.jword2vec.util.ProfilingTimer;
 import com.github.oeuvres.jword2vec.util.Strings;
 import com.github.oeuvres.jword2vec.util.ThriftUtils;
 import com.google.common.base.Function;
@@ -69,9 +68,7 @@ public class Word2VecExamples {
 				.train(partitioned);
 
 		// Writes model to a thrift file
-		try (ProfilingTimer timer = ProfilingTimer.create(LOG, "Writing output to file")) {
-			FileUtils.writeStringToFile(new File("text8.model"), ThriftUtils.serializeJson(model.toThrift()));
-		}
+		FileUtils.writeStringToFile(new File("text8.model"), ThriftUtils.serializeJson(model.toThrift()));
 
 		// Alternatively, you can write the model to a bin file that's compatible with the C
 		// implementation.
@@ -85,10 +82,8 @@ public class Word2VecExamples {
 	/** Loads a model and allows user to find similar words */
 	public static void loadModel() throws IOException, TException, UnknownWordException {
 		final Word2VecModel model;
-		try (ProfilingTimer timer = ProfilingTimer.create(LOG, "Loading model")) {
-			String json = Common.readFileToString(new File("text8.model"));
-			model = Word2VecModel.fromThrift(ThriftUtils.deserializeJson(new Word2VecModelThrift(), json));
-		}
+		String json = Common.readFileToString(new File("text8.model"));
+		model = Word2VecModel.fromThrift(ThriftUtils.deserializeJson(new Word2VecModelThrift(), json));
 		interact(model.forSearch());
 	}
 	
@@ -119,9 +114,7 @@ public class Word2VecExamples {
 				})
 				.train(partitioned);
 		
-		try (ProfilingTimer timer = ProfilingTimer.create(LOG, "Writing output to file")) {
-			FileUtils.writeStringToFile(new File("300layer.20threads.5iter.model"), ThriftUtils.serializeJson(model.toThrift()));
-		}
+		FileUtils.writeStringToFile(new File("300layer.20threads.5iter.model"), ThriftUtils.serializeJson(model.toThrift()));
 		
 		interact(model.forSearch());
 	}
