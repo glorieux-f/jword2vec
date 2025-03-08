@@ -16,7 +16,6 @@ import java.util.List;
 
 import com.github.oeuvres.jword2vec.util.AC;
 import com.github.oeuvres.jword2vec.util.Common;
-import com.github.oeuvres.jword2vec.util.ProfilingTimer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -106,30 +105,20 @@ public class Word2VecModel {
 	 */
 	public static Word2VecModel fromBinFile(File file)
 			throws IOException {
-		return fromBinFile(file, ByteOrder.LITTLE_ENDIAN, ProfilingTimer.NONE);
-	}
-
-	/**
-	 * Forwards to {@link #fromBinFile(File, ByteOrder, ProfilingTimer)} with no ProfilingTimer
-	 */
-	public static Word2VecModel fromBinFile(File file, ByteOrder byteOrder)
-			throws IOException {
-		return fromBinFile(file, byteOrder, ProfilingTimer.NONE);
+		return fromBinFile(file, ByteOrder.LITTLE_ENDIAN);
 	}
 
 	/**
 	 * @return {@link Word2VecModel} created from the binary representation output
 	 * by the open source C version of word2vec using the given byte order.
 	 */
-	public static Word2VecModel fromBinFile(File file, ByteOrder byteOrder, ProfilingTimer timer)
+	public static Word2VecModel fromBinFile(File file, ByteOrder byteOrder)
 			throws IOException {
 
 		try (
 				final FileInputStream fis = new FileInputStream(file);
-				final AC ac = timer.start("Loading vectors from bin file")
 		) {
 			final FileChannel channel = fis.getChannel();
-			timer.start("Reading gigabyte #1");
 			MappedByteBuffer buffer =
 					channel.map(
 							FileChannel.MapMode.READ_ONLY,
@@ -155,30 +144,28 @@ public class Word2VecModel {
 
 			final int vocabSize = Integer.parseInt(firstLine.substring(0, index));
 			final int layerSize = Integer.parseInt(firstLine.substring(index + 1));
-			timer.appendToLog(String.format(
-					"Loading %d vectors with dimensionality %d",
-					vocabSize,
-					layerSize));
 
 			List<String> vocabs = new ArrayList<String>(vocabSize);
 			DoubleBuffer vectors = ByteBuffer.allocateDirect(vocabSize * layerSize * 8).asDoubleBuffer();
 
 			long lastLogMessage = System.currentTimeMillis();
 			final float[] floats = new float[layerSize];
+			// https://github.com/medallia/Word2VecJava/issues/44
+			// bytes instead of chars
+			byte[] buff = new byte[1024];
 			for (int lineno = 0; lineno < vocabSize; lineno++) {
 				// read vocab
-				sb.setLength(0);
-				c = (char) buffer.get();
-				while (c != ' ') {
+                int bpos = 0;
+                byte b = buffer.get();
+                while (b != ' ') {
 					// ignore newlines in front of words (some binary files have newline,
 					// some don't)
-					if (c != '\n') {
-						sb.append(c);
-					}
-					c = (char) buffer.get();
-				}
-				vocabs.add(sb.toString());
-
+                    if (b != '\n') {
+                        buff[bpos++] = b;
+                    }
+                    b = buffer.get();
+                }
+                vocabs.add(new String(buff, 0, bpos, "UTF-8"));
 				// read vector
 				final FloatBuffer floatBuffer = buffer.asFloatBuffer();
 				floatBuffer.get(floats);
@@ -191,8 +178,6 @@ public class Word2VecModel {
 				final long now = System.currentTimeMillis();
 				if (now - lastLogMessage > 1000) {
 					final double percentage = ((double) (lineno + 1) / (double) vocabSize) * 100.0;
-					timer.appendToLog(
-							String.format("Loaded %d/%d vectors (%f%%)", lineno + 1, vocabSize, percentage));
 					lastLogMessage = now;
 				}
 
@@ -200,11 +185,6 @@ public class Word2VecModel {
 				if (buffer.position() > ONE_GB) {
 					final int newPosition = (int) (buffer.position() - ONE_GB);
 					final long size = Math.min(channel.size() - ONE_GB * bufferCount, Integer.MAX_VALUE);
-					timer.endAndStart(
-							"Reading gigabyte #%d. Start: %d, size: %d",
-							bufferCount,
-							ONE_GB * bufferCount,
-							size);
 					buffer = channel.map(
 							FileChannel.MapMode.READ_ONLY,
 							ONE_GB * bufferCount,
@@ -214,7 +194,6 @@ public class Word2VecModel {
 					bufferCount += 1;
 				}
 			}
-			timer.end();
 
 			return new Word2VecModel(vocabs, layerSize, vectors);
 		}
