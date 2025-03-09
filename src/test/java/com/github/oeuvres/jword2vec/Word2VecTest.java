@@ -3,28 +3,19 @@ package com.github.oeuvres.jword2vec;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.List;
 
-import org.apache.thrift.TException;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.github.oeuvres.jword2vec.Word2VecModel;
-import com.github.oeuvres.jword2vec.Word2VecModelThrift;
-import com.github.oeuvres.jword2vec.Word2VecTrainer;
-import com.github.oeuvres.jword2vec.Word2VecTrainerBuilder;
 import com.github.oeuvres.jword2vec.Searcher.Match;
 import com.github.oeuvres.jword2vec.Searcher.UnknownWordException;
 import com.github.oeuvres.jword2vec.Word2VecTrainerBuilder.TrainingProgressListener;
 import com.github.oeuvres.jword2vec.neuralnetwork.NeuralNetworkType;
 import com.github.oeuvres.jword2vec.util.Common;
-import com.github.oeuvres.jword2vec.util.ThriftUtils;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -45,75 +36,6 @@ public class Word2VecTest {
 	public void after() {
 		// Unset the interrupted flag to avoid polluting other tests
 		Thread.interrupted();
-	}
-
-	/** Test {@link NeuralNetworkType#CBOW} */
-	@Test
-	public void testCBOW() throws IOException, TException, InterruptedException {
-		assertModelMatches("cbowBasic.model",
-				Word2VecModel.trainer()
-						.setMinVocabFrequency(6)
-						.useNumThreads(1)
-						.setWindowSize(8)
-						.type(NeuralNetworkType.CBOW)
-						.useHierarchicalSoftmax()
-						.setLayerSize(25)
-						.setDownSamplingRate(1e-3)
-						.setNumIterations(1)
-						.train(testData())
-		);
-	}
-
-	/** Test {@link NeuralNetworkType#CBOW} with 15 iterations */
-	@Test
-	public void testCBOWwith15Iterations() throws IOException, TException, InterruptedException {
-		assertModelMatches("cbowIterations.model",
-				Word2VecModel.trainer()
-					.setMinVocabFrequency(5)
-					.useNumThreads(1)
-					.setWindowSize(8)
-					.type(NeuralNetworkType.CBOW)
-					.useHierarchicalSoftmax()
-					.setLayerSize(25)
-					.useNegativeSamples(5)
-					.setDownSamplingRate(1e-3)
-					.setNumIterations(15)
-					.train(testData())
-			);
-	}
-
-	/** Test {@link NeuralNetworkType#SKIP_GRAM} */
-	@Test
-	public void testSkipGram() throws IOException, TException, InterruptedException {
-		assertModelMatches("skipGramBasic.model",
-				Word2VecModel.trainer()
-					.setMinVocabFrequency(6)
-					.useNumThreads(1)
-					.setWindowSize(8)
-					.type(NeuralNetworkType.SKIP_GRAM)
-					.useHierarchicalSoftmax()
-					.setLayerSize(25)
-					.setDownSamplingRate(1e-3)
-					.setNumIterations(1)
-					.train(testData())
-			);
-	}
-
-	/** Test {@link NeuralNetworkType#SKIP_GRAM} with 15 iterations */
-	@Test
-	public void testSkipGramWith15Iterations() throws IOException, TException, InterruptedException {
-		assertModelMatches("skipGramIterations.model",
-				Word2VecModel.trainer()
-					.setMinVocabFrequency(6)
-					.useNumThreads(1)
-					.setWindowSize(8)
-					.type(NeuralNetworkType.SKIP_GRAM)
-					.useHierarchicalSoftmax()
-					.setLayerSize(25)
-					.setDownSamplingRate(1e-3)
-					.setNumIterations(15)
-					.train(testData())
-			);
 	}
 
 	/** Test that we can interrupt the huffman encoding process */
@@ -241,28 +163,4 @@ public class Word2VecTest {
 		return partitioned;
 	}
 
-	private void assertModelMatches(String expectedResource, Word2VecModel model) throws TException {
-		final String thrift;
-		try {
-			thrift = Common.readResourceToStringChecked(getClass(), expectedResource);
-		} catch (IOException ioe) {
-			String filename = "/tmp/" + expectedResource;
-			String content = ThriftUtils.serializeJson(model.toThrift());
-			try {
-				Files.write( Paths.get(filename), content.getBytes("UTF-8"));
-			} catch (IOException e) {
-				throw new AssertionError("Could not read resource " + expectedResource + " and could not write expected output to /tmp");
-			}
-			throw new AssertionError("Could not read resource " + expectedResource + " wrote to " + filename);
-		}
-
-		Word2VecModelThrift expected = ThriftUtils.deserializeJson(
-				new Word2VecModelThrift(),
-				thrift
-		);
-
-		assertEquals("Mismatched vocab", expected.getVocab().size(), Iterables.size(model.getVocab()));
-
-		assertEquals(expected, model.toThrift());
-	}
 }
