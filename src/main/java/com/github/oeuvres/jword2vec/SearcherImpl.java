@@ -8,7 +8,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.primitives.Doubles;
 
 import java.nio.DoubleBuffer;
-import java.util.Arrays;
 import java.util.List;
 
 /** Implementation of {@link Searcher} */

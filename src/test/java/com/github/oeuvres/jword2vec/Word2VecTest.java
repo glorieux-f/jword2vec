@@ -5,9 +5,10 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.thrift.TException;
 import org.junit.After;
 import org.junit.Rule;
@@ -246,11 +247,9 @@ public class Word2VecTest {
 			thrift = Common.readResourceToStringChecked(getClass(), expectedResource);
 		} catch (IOException ioe) {
 			String filename = "/tmp/" + expectedResource;
+			String content = ThriftUtils.serializeJson(model.toThrift());
 			try {
-				FileUtils.writeStringToFile(
-						new File(filename),
-						ThriftUtils.serializeJson(model.toThrift())
-				);
+				Files.write( Paths.get(filename), content.getBytes("UTF-8"));
 			} catch (IOException e) {
 				throw new AssertionError("Could not read resource " + expectedResource + " and could not write expected output to /tmp");
 			}

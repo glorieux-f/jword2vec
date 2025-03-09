@@ -14,7 +14,6 @@ import com.google.common.collect.Lists;
 
 import org.apache.commons.logging.Log;
 import org.apache.thrift.TException;
-import org.apache.commons.io.FileUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -22,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
@@ -43,7 +43,7 @@ public class Word2VecExamples {
 		File f = new File("text8");
 		if (!f.exists())
 	       	       throw new IllegalStateException("Please download and unzip the text8 example from http://mattmahoney.net/dc/text8.zip");
-		List<String> read = Common.readToList(f);
+		List<String> read = Files.readAllLines(f.toPath());
 		List<List<String>> partitioned = Lists.transform(read, new Function<String, List<String>>() {
 			@Override
 			public List<String> apply(String input) {
@@ -68,7 +68,9 @@ public class Word2VecExamples {
 				.train(partitioned);
 
 		// Writes model to a thrift file
-		FileUtils.writeStringToFile(new File("text8.model"), ThriftUtils.serializeJson(model.toThrift()));
+		final String content = ThriftUtils.serializeJson(model.toThrift());
+		Files.write( Paths.get("text8.model"), content.getBytes("UTF-8"));
+
 
 		// Alternatively, you can write the model to a bin file that's compatible with the C
 		// implementation.
@@ -82,14 +84,14 @@ public class Word2VecExamples {
 	/** Loads a model and allows user to find similar words */
 	public static void loadModel() throws IOException, TException, UnknownWordException {
 		final Word2VecModel model;
-		String json = Common.readFileToString(new File("text8.model"));
+		String json = Files.readString(Path.of("text8.model"));
 		model = Word2VecModel.fromThrift(ThriftUtils.deserializeJson(new Word2VecModelThrift(), json));
 		interact(model.forSearch());
 	}
 	
 	/** Example using Skip-Gram model */
 	public static void skipGram() throws IOException, TException, InterruptedException, UnknownWordException {
-		List<String> read = Common.readToList(new File("sents.cleaned.word2vec.txt"));
+		List<String> read = Files.readAllLines(new File("sents.cleaned.word2vec.txt").toPath());
 		List<List<String>> partitioned = Lists.transform(read, new Function<String, List<String>>() {
 			@Override
 			public List<String> apply(String input) {
@@ -114,8 +116,8 @@ public class Word2VecExamples {
 				})
 				.train(partitioned);
 		
-		FileUtils.writeStringToFile(new File("300layer.20threads.5iter.model"), ThriftUtils.serializeJson(model.toThrift()));
-		
+		final String content = ThriftUtils.serializeJson(model.toThrift());
+		Files.write( Paths.get("300layer.20threads.5iter.model"), content.getBytes("UTF-8"));
 		interact(model.forSearch());
 	}
 	

@@ -1,20 +1,19 @@
 package com.github.oeuvres.jword2vec.util;
 
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.ObjectOutputStream;
 import java.io.Reader;
 import java.io.Serializable;
-import java.io.StringWriter;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -52,17 +51,6 @@ public class Common {
 		}
 	}
 
-	/**
-	 * Read the file line for line and return the result in a list
-	 * @throws IOException upon failure in reading, note that we wrap the underlying IOException with the file name
-	 */
-	public static List<String> readToList(File f) throws IOException {
-		try (final Reader reader = asReaderUTF8Lenient(new FileInputStream(f))) {
-			return readToList(reader);
-		} catch (IOException ioe) {
-			throw new IllegalStateException(String.format("Failed to read %s: %s", f.getAbsolutePath(), ioe), ioe);
-		}
-	}
 	/** Read the Reader line for line and return the result in a list */
 	public static List<String> readToList(Reader r) throws IOException {
 		try ( BufferedReader in = new BufferedReader(r) ) {
@@ -74,17 +62,8 @@ public class Common {
 		}
 	}
 
-	/** Wrap the InputStream in a Reader that reads UTF-8. Invalid content will be replaced by unicode replacement glyph. */
-	public static Reader asReaderUTF8Lenient(InputStream in) {
-		return new UnicodeReader(in, "utf-8");
-	}
 
-	/** Read the contents of the given file into a string */
-	public static String readFileToString(File f) throws IOException {
-		StringWriter sw = new StringWriter();
-		IO.copyAndCloseBoth(Common.asReaderUTF8Lenient(new FileInputStream(f)), sw);
-		return sw.toString();
-	}
+
 
 	/** @return true if i is an even number */
 	public static boolean isEven(int i) { return (i&1)==0; }
@@ -94,19 +73,22 @@ public class Common {
 	/** Read the lines (as UTF8) of the resource file fn from the package of the given class into a (unmodifiable) list of strings
 	 * @throws IOException */
 	public static List<String> readResource(Class<?> clazz, String fn) throws IOException {
-		try (final Reader reader = asReaderUTF8Lenient(getResourceAsStream(clazz, fn))) {
-			return readToList(reader);
+		InputStream in =  clazz.getResourceAsStream(fn);
+		if (in == null) {
+			throw new FileNotFoundException("InputStream is null for " + fn);
 		}
+        if (Path.of(fn).endsWith(".gz")) {
+        	in = new GZIPInputStream(in);
+        }
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        List<String> lines = new ArrayList<String>();
+        String line;
+        while ((line = reader.readLine()) != null) {
+        	lines.add(line);
+        }
+        return lines;
 	}
 
-	/** Get an input stream to read the raw contents of the given resource, remember to close it :) */
-	public static InputStream getResourceAsStream(Class<?> clazz, String fn) throws IOException {
-		InputStream stream = clazz.getResourceAsStream(fn);
-		if (stream == null) {
-			throw new IOException("resource \"" + fn + "\" relative to " + clazz + " not found.");
-		}
-		return unpackStream(stream, fn);
-	}
 	
 	/** Get a file to read the raw contents of the given resource :) */
   public static File getResourceAsFile(Class<?> clazz, String fn) throws IOException {
@@ -117,25 +99,16 @@ public class Common {
     return new File(url.getFile());
   }
 
-	/**
-	 * @throws IOException if {@code is} is null or if an {@link IOException} is thrown when reading from {@code is}
-	 */
-	public static InputStream unpackStream(InputStream is, String fn) throws IOException {
-		if (is == null)
-			throw new FileNotFoundException("InputStream is null for " + fn);
-
-		switch (FilenameUtils.getExtension(fn).toLowerCase()) {
-			case "gz":
-				return new GZIPInputStream(is);
-			default:
-				return is;
-		}
-	}
 
 	/** Read the lines (as UTF8) of the resource file fn from the package of the given class into a string */
 	public static String readResourceToStringChecked(Class<?> clazz, String fn) throws IOException {
-		try (InputStream stream = getResourceAsStream(clazz, fn)) {
-			return IOUtils.toString(asReaderUTF8Lenient(stream));
+		InputStream in =  clazz.getResourceAsStream(fn);
+		if (in == null) {
+			throw new FileNotFoundException("InputStream is null for " + fn);
 		}
+        if (Path.of(fn).endsWith(".gz")) {
+        	in = new GZIPInputStream(in);
+        }
+		return new String(in.readAllBytes(), StandardCharsets.UTF_8);
 	}
 }

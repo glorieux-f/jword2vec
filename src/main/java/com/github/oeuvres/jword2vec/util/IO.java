@@ -1,8 +1,6 @@
 package com.github.oeuvres.jword2vec.util;
 
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
-import org.apache.commons.io.IOUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -114,17 +112,20 @@ public final class IO {
 	 * Copy the data from the given {@link InputStream} to a temporary file and call the given
 	 * {@link Function} with it; after the function returns the file is deleted.
 	 */
+	/*
 	public static <X> X runWithFile(InputStream stream, Function<File, X> function) throws IOException {
 		File f = File.createTempFile("run-with-file", null);
 		try {
 			try (FileOutputStream out = new FileOutputStream(f)) {
 				IOUtils.copy(stream, out);
 			}
+			Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
 			return function.apply(f);
 		} finally {
 			f.delete();
 		}
 	}
+	*/
 
 	/** @return the compressed (gzip) version of the given bytes */
 	public static byte[] gzip(byte[] in) {

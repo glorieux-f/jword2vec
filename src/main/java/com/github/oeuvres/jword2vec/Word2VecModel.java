@@ -11,6 +11,7 @@ import java.nio.FloatBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -95,7 +96,7 @@ public class Word2VecModel {
 	 * open source project.
 	 */
 	public static Word2VecModel fromTextFile(File file) throws IOException {
-		List<String> lines = Common.readToList(file);
+		List<String> lines = Files.readAllLines(file.toPath());
 		return fromTextFile(file.getAbsolutePath(), lines);
 	}
 
