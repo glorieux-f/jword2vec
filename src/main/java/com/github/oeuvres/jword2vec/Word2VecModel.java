@@ -15,8 +15,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.github.oeuvres.jword2vec.util.AC;
-import com.github.oeuvres.jword2vec.util.Common;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
