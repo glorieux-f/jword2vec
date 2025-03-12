@@ -1,7 +1,7 @@
 package com.github.oeuvres.jword2vec.neuralnetwork;
 
 import com.github.oeuvres.jword2vec.HuffmanCoding.HuffmanNode;
-import com.github.oeuvres.jword2vec.Word2VecTrainerBuilder.TrainingProgressListener;
+import com.github.oeuvres.jword2vec.VecTrainerBuilder.TrainingProgressListener;
 import com.google.common.collect.Multiset;
 
 import java.util.List;

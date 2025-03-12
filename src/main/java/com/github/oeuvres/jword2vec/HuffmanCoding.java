@@ -1,7 +1,7 @@
 package com.github.oeuvres.jword2vec;
 
-import com.github.oeuvres.jword2vec.Word2VecTrainerBuilder.TrainingProgressListener;
-import com.github.oeuvres.jword2vec.Word2VecTrainerBuilder.TrainingProgressListener.Stage;
+import com.github.oeuvres.jword2vec.VecTrainerBuilder.TrainingProgressListener;
+import com.github.oeuvres.jword2vec.VecTrainerBuilder.TrainingProgressListener.Stage;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultiset;
