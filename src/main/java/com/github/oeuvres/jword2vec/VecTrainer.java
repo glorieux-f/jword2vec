@@ -77,10 +77,16 @@ class VecTrainer
         huffmanNodes = new HuffmanCoding(vocab, listener).encode();
         final NeuralNetworkModel model;
         model = neuralNetworkConfig.createTrainer(vocab, huffmanNodes, listener).train(sentences);
+        // TODO, more efficient
+        double[] doubles = Doubles.concat(model.vectors());
+        final int len = doubles.length;
+        float[] floats = new float[len];
+        for (int i = 0; i < len; i++) floats[i] = (float)doubles[i];
+        
         return new VecModel(
             vocab.elementSet().toArray(new String[vocab.elementSet().size()]),
             model.layerSize(),
-            Doubles.concat(model.vectors())
+            floats
         );
     }
 }

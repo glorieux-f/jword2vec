@@ -4,8 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Scanner;
 
+import com.github.oeuvres.alix.util.Edge;
 import com.github.oeuvres.jword2vec.VecSearch.UnknownWordException;
-import com.github.oeuvres.jword2vec.util.Edge;
 
 public class DistanceTest
 {
@@ -13,8 +13,8 @@ public class DistanceTest
     static void distance() throws IOException, UnknownWordException
     {
 
-        // File modelFile = new File(DistanceTest.class.getResource("rougemont.bin").getFile());
-        File modelFile = new File("D:/code/ddr_lab/src/main/webapp/rougemont.bin");
+        File modelFile = new File(DistanceTest.class.getResource("rougemont.bin").getFile());
+        // File modelFile = new File("D:/code/ddr_lab/src/main/webapp/rougemont.bin");
         VecModel model = VecModel.fromBinFile(modelFile);
         VecSearch searcher =  model.forSearch();
         

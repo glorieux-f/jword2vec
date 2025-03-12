@@ -3,6 +3,7 @@ package com.github.oeuvres.jword2vec;
 import java.io.File;
 import java.io.IOException;
 import java.nio.DoubleBuffer;
+import java.nio.FloatBuffer;
 
 /**
  * Represents a word2vec model where all the vectors are normalized to unit
@@ -10,13 +11,13 @@ import java.nio.DoubleBuffer;
  */
 public class NormalizedWord2VecModel extends VecModel
 {
-    private NormalizedWord2VecModel(String[] vocab, int layerSize, final DoubleBuffer vectors)
+    private NormalizedWord2VecModel(String[] vocab, int layerSize, final FloatBuffer vectors)
     {
         super(vocab, layerSize, vectors);
         normalize();
     }
 
-    private NormalizedWord2VecModel(String[] vocab, int layerSize, double[] vectors)
+    private NormalizedWord2VecModel(String[] vocab, int layerSize, float[] vectors)
     {
         super(vocab, layerSize, vectors);
         normalize();
@@ -36,10 +37,10 @@ public class NormalizedWord2VecModel extends VecModel
     private void normalize()
     {
         for (int i = 0; i < vocab.length; ++i) {
-            double len = 0;
+            float len = 0;
             for (int j = i * layerSize; j < (i + 1) * layerSize; ++j)
                 len += vectors.get(j) * vectors.get(j);
-            len = Math.sqrt(len);
+            len = (float) Math.sqrt(len);
 
             for (int j = i * layerSize; j < (i + 1) * layerSize; ++j)
                 vectors.put(j, vectors.get(j) / len);

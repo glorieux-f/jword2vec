@@ -1,17 +1,9 @@
 package com.github.oeuvres.jword2vec;
 
-import com.github.oeuvres.jword2vec.util.Edge;
-import com.github.oeuvres.jword2vec.util.Top;
-import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Ordering;
-import com.google.common.primitives.Doubles;
+import com.github.oeuvres.alix.util.Edge;
+import com.github.oeuvres.alix.util.Top;
 
-import java.nio.DoubleBuffer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.nio.FloatBuffer;
 
 /** Provides search functionality */
 public class VecSearch
@@ -44,11 +36,11 @@ public class VecSearch
      */
     public Edge[] sims(final String[] words, final int limit) throws UnknownWordException
     {
-        double[][] vectors = new double[words.length][];
+        float[][] vectors = new float[words.length][];
         for (int v = 0; v < words.length; v++) {
             vectors[v] = vector(words[v]);
         }
-        double[] mean = mean(vectors);
+        float[] mean = mean(vectors);
         Edge[] edges = sims(mean, limit);
         return edges;
     }
@@ -60,7 +52,7 @@ public class VecSearch
      * @param limit
      * @return
      */
-    public Edge[] sims(final double[] vec, int limit) 
+    public Edge[] sims(final float[] vec, int limit) 
     {
         // the top collector
         Top<Edge> top = new Top<>(Edge.class, limit);
@@ -72,15 +64,15 @@ public class VecSearch
         }
         // ensure source vector has no NaN
         for(int node = 0; node < model.layerSize; node ++) {
-            if (Double.isNaN(vec[node])) vec[node] = 0;
+            if (Float.isNaN(vec[node])) vec[node] = 0;
         }
-        final DoubleBuffer vectors = model.vectors.duplicate();
+        final FloatBuffer vectors = model.vectors.duplicate();
         for (int wordId = 0; wordId < model.vocab.length; wordId++) {
             // calculate cosine distance
             double score = 0;
             for(int node = 0; node < model.layerSize; node ++) {
-                final double d2 = vectors.get();
-                if (Double.isNaN(d2)) continue;
+                final float d2 = vectors.get();
+                if (Float.isNaN(d2)) continue;
                 score += vec[node] * d2;
             }
             if (!top.isInsertable(score)) continue;
@@ -93,7 +85,7 @@ public class VecSearch
         return edges;
     }
 
-    private double[] vector(final String word) throws UnknownWordException
+    private float[] vector(final String word) throws UnknownWordException
     {
         final Integer wordId = model.wordId(word);
         if (wordId == null) {
@@ -101,19 +93,19 @@ public class VecSearch
         }
         int position = wordId * model.layerSize;
         // buffers' position, limit, and mark values will beindependent.
-        final DoubleBuffer vectors = model.vectors.duplicate();
-        double[] result = new double[model.layerSize];
+        final FloatBuffer vectors = model.vectors.duplicate();
+        float[] result = new float[model.layerSize];
         vectors.position(position);
         vectors.get(result);
         return result;
     }
 
-    private double cosine(double[] vec1, double[] vec2)
+    private double cosine(float[] vec1, float[] vec2)
     {
         double d = 0;
         for (int a = 0; a < model.layerSize; a++) {
             // NaN bug in loading
-            if (Double.isNaN(vec1[a]) || Double.isNaN(vec2[a]))
+            if (Float.isNaN(vec1[a]) || Float.isNaN(vec2[a]))
                 continue;
             d += vec2[a] * vec1[a];
         }
@@ -121,9 +113,9 @@ public class VecSearch
     }
 
     /** @return Vector difference from v1 to v2 */
-    private double[] difference(double[] v1, double[] v2)
+    private float[] difference(float[] v1, float[] v2)
     {
-        double[] diff = new double[model.layerSize];
+        float[] diff = new float[model.layerSize];
         for (int i = 0; i < model.layerSize; i++)
             diff[i] = v1[i] - v2[i];
         return diff;
@@ -132,20 +124,20 @@ public class VecSearch
     /**
      * @return Vector mean
      */
-    private double[] mean(double[][] vectors)
+    private float[] mean(float[][] vectors)
     {
-        double[] mean = new double[model.layerSize];
+        float[] mean = new float[model.layerSize];
         for (int p = 0; p < model.layerSize; p++) {
             double sum = 0;
             int card = 0;
             for (int v = 0; v < vectors.length; v++) {
                 // skip NaN (infinity ?)
-                if (Double.isNaN(vectors[v][p]))
+                if (Float.isNaN(vectors[v][p]))
                     continue;
                 sum += vectors[v][p];
                 card++;
             }
-            mean[p] = sum / card;
+            mean[p] = (float)(sum / card);
         }
         return mean;
     }

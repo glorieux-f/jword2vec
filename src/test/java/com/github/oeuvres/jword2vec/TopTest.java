@@ -10,8 +10,8 @@ import java.util.List;
 
 import org.junit.Test;
 
-import com.github.oeuvres.jword2vec.util.Edge;
-import com.github.oeuvres.jword2vec.util.Top;
+import com.github.oeuvres.alix.util.Edge;
+import com.github.oeuvres.alix.util.Top;
 
 public class TopTest
 {

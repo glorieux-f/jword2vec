@@ -30,7 +30,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.github.oeuvres.jword2vec.util;
+package com.github.oeuvres.alix.util;
 
 /**
  * An edge between 2 nodes with a score, optimized to be sorted by score in

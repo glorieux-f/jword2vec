@@ -39,7 +39,7 @@ public class VecModel
     /** Size of vectors */
     protected final int layerSize;
     /** File mapped vectors */
-    final DoubleBuffer vectors;
+    final FloatBuffer vectors;
     
     public boolean contains(String word) {
         return word4id.containsKey(word);
@@ -49,7 +49,7 @@ public class VecModel
         return word4id.get(word);
     }
 
-    VecModel(final String[] vocab, int layerSize, DoubleBuffer vectors)
+    VecModel(final String[] vocab, int layerSize, FloatBuffer vectors)
     {
         this.vocab = vocab;
         this.layerSize = layerSize;
@@ -60,9 +60,9 @@ public class VecModel
         }
     }
 
-    VecModel(final String[] vocab, int layerSize, double[] vectors)
+    VecModel(final String[] vocab, int layerSize, float[] vectors)
     {
-        this(vocab, layerSize, DoubleBuffer.wrap(vectors));
+        this(vocab, layerSize, FloatBuffer.wrap(vectors));
     }
 
 
@@ -97,9 +97,9 @@ public class VecModel
     
         try (final FileInputStream fis = new FileInputStream(file);) {
             final FileChannel channel = fis.getChannel();
-            MappedByteBuffer buffer = channel.map(FileChannel.MapMode.READ_ONLY, 0,
+            MappedByteBuffer sourceBuffer = channel.map(FileChannel.MapMode.READ_ONLY, 0,
                     Math.min(channel.size(), Integer.MAX_VALUE));
-            buffer.order(byteOrder);
+            sourceBuffer.order(byteOrder);
             int bufferCount = 1;
             // Java's NIO only allows memory-mapping up to 2GB. To work around this problem,
             // we re-map
@@ -108,61 +108,63 @@ public class VecModel
             // we've already skipped. That's what this is for.
     
             StringBuilder sb = new StringBuilder();
-            char c = (char) buffer.get();
+            char c = (char) sourceBuffer.get();
             while (c != '\n') {
                 sb.append(c);
-                c = (char) buffer.get();
+                c = (char) sourceBuffer.get();
             }
             String firstLine = sb.toString();
             int index = firstLine.indexOf(' ');
-            Preconditions.checkState(index != -1, "Expected a space in the first line of file '%s': '%s'",
-                    file.getAbsolutePath(), firstLine);
+            if (index == -1) {
+                throw new IndexOutOfBoundsException(
+                    String.format(
+                        "Expected a space in the first line of file %s: “%s”",
+                        file.getAbsolutePath(),
+                        firstLine
+                    )
+                );
+            }
     
             final int vocabSize = Integer.parseInt(firstLine.substring(0, index));
             final int layerSize = Integer.parseInt(firstLine.substring(index + 1));
     
-            List<String> vocab = new ArrayList<String>(vocabSize);
-            DoubleBuffer vectors = ByteBuffer.allocateDirect(vocabSize * layerSize * 8).asDoubleBuffer();
+            String[] vocab = new String[vocabSize];
+            FloatBuffer vectors = ByteBuffer.allocateDirect(vocabSize * layerSize * 4).asFloatBuffer();
     
-            final float[] floats = new float[layerSize];
+            final float[] sourceVec = new float[layerSize];
             // https://github.com/medallia/Word2VecJava/issues/44
             // bytes instead of chars
             byte[] buff = new byte[1024];
             for (int lineno = 0; lineno < vocabSize; lineno++) {
                 // read vocab
                 int bpos = 0;
-                byte b = buffer.get();
+                byte b = sourceBuffer.get();
                 while (b != ' ') {
                     // ignore newlines in front of words (some binary files have newline,
                     // some don't)
                     if (b != '\n') {
                         buff[bpos++] = b;
                     }
-                    b = buffer.get();
+                    b = sourceBuffer.get();
                 }
-                vocab.add(new String(buff, 0, bpos, "UTF-8"));
-                // read vector
-                final FloatBuffer floatBuffer = buffer.asFloatBuffer();
-                floatBuffer.get(floats);
-                for (int i = 0; i < floats.length; ++i) {
-                    vectors.put(lineno * layerSize + i, floats[i]);
-                }
-                buffer.position(buffer.position() + 4 * layerSize);
+                vocab[lineno] = new String(buff, 0, bpos, "UTF-8");
+                vectors.put(lineno * layerSize, sourceBuffer.asFloatBuffer(), 0, layerSize);
+                sourceBuffer.position(sourceBuffer.position() + 4 * layerSize);
     
     
                 // remap file
-                if (buffer.position() > ONE_GB) {
-                    final int newPosition = (int) (buffer.position() - ONE_GB);
+                if (sourceBuffer.position() > ONE_GB) {
+                    final int newPosition = (int) (sourceBuffer.position() - ONE_GB);
                     final long size = Math.min(channel.size() - ONE_GB * bufferCount, Integer.MAX_VALUE);
-                    buffer = channel.map(FileChannel.MapMode.READ_ONLY, ONE_GB * bufferCount, size);
-                    buffer.order(byteOrder);
-                    buffer.position(newPosition);
+                    sourceBuffer = channel.map(FileChannel.MapMode.READ_ONLY, ONE_GB * bufferCount, size);
+                    sourceBuffer.order(byteOrder);
+                    sourceBuffer.position(newPosition);
                     bufferCount += 1;
                 }
             }
     
             return new VecModel(
-                vocab.toArray(new String[vocab.size()]), 
+                vocab, 
                 layerSize, 
                 vectors
             );
@@ -180,39 +182,37 @@ public class VecModel
     }
 
     /**
+     * Not tested
+     * 
      * @return {@link VecModel} from the lines of the file in the text output
      *         format of the Word2Vec C open source project.
      */
     @VisibleForTesting
     static VecModel fromTextFile(String filename, List<String> lines) throws IOException
     {
-        List<String> vocab = Lists.newArrayList();
-        List<Double> vectors = Lists.newArrayList();
         int vocabSize = Integer.parseInt(lines.get(0).split(" ")[0]);
+        if (vocabSize != lines.size() - 1) {
+            throw new IllegalArgumentException(String.format("%s, vobabSize=%d according to line 0, but %d vector line found", filename, vocabSize, lines.size() - 1));
+        }
         int layerSize = Integer.parseInt(lines.get(0).split(" ")[1]);
-
-        Preconditions.checkArgument(vocabSize == lines.size() - 1,
-                "For file '%s', vocab size is %s, but there are %s word vectors in the file", filename, vocabSize,
-                lines.size() - 1);
-
-        for (int n = 1; n < lines.size(); n++) {
-            String[] values = lines.get(n).split(" ");
-            vocab.add(values[0]);
-
-            // Sanity check
-            Preconditions.checkArgument(layerSize == values.length - 1,
-                    "For file '%s', on line %s, layer size is %s, but found %s values in the word vector", filename, n,
-                    layerSize, values.length - 1);
-
-            for (int d = 1; d < values.length; d++) {
-                vectors.add(Double.parseDouble(values[d]));
+        String[] vocab = new String[vocabSize];
+        float[] vectors = new float[vocabSize * layerSize];
+        for (int wordId = 0; wordId < vocabSize; wordId++) {
+            String[] values = lines.get(wordId + 1).split(" ");
+            if (layerSize != values.length - 1) {
+                throw new IllegalArgumentException(String.format("%s#%d, layerSize=%d according to line 0, but %d values fond in vector", filename, wordId + 1, layerSize, values.length - 1));
+            }
+            vocab[wordId] = values[0];
+            final int wordIndex = wordId * layerSize;
+            for (int node = 0; node < layerSize; node++) {
+                vectors[wordIndex + node] = Float.parseFloat(values[node + 1]);
             }
         }
         
         return new VecModel(
-            vocab.toArray(new String[vocab.size()]), 
+            vocab, 
             layerSize,
-            Doubles.toArray(vectors)
+            vectors
         );
     }
 
@@ -222,17 +222,18 @@ public class VecModel
      */
     public void toBinFile(final OutputStream out) throws IOException
     {
+        // could be optimize
         final Charset cs = Charset.forName("UTF-8");
         final String header = String.format("%d %d\n", vocab.length, layerSize);
         out.write(header.getBytes(cs));
     
-        final double[] vector = new double[layerSize];
+        final float[] vector = new float[layerSize];
         final ByteBuffer buffer = ByteBuffer.allocate(4 * layerSize);
         buffer.order(ByteOrder.LITTLE_ENDIAN); // The C version uses this byte order.
-        for (int i = 0; i < vocab.length; ++i) {
-            out.write(String.format("%s ", vocab[i]).getBytes(cs));
+        for (int wordId = 0; wordId < vocab.length; ++wordId) {
+            out.write(String.format("%s ", vocab[wordId]).getBytes(cs));
     
-            vectors.position(i * layerSize);
+            vectors.position(wordId * layerSize);
             vectors.get(vector);
             buffer.clear();
             for (int j = 0; j < layerSize; ++j)

@@ -30,7 +30,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.github.oeuvres.jword2vec.util;
+package com.github.oeuvres.alix.util;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
