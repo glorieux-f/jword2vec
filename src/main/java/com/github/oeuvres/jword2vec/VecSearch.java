@@ -3,7 +3,7 @@ package com.github.oeuvres.jword2vec;
 import com.github.oeuvres.alix.util.Edge;
 import com.github.oeuvres.alix.util.Top;
 
-import java.nio.FloatBuffer;
+import java.nio.DoubleBuffer;
 
 /** Provides search functionality */
 public class VecSearch
@@ -27,6 +27,51 @@ public class VecSearch
         return model.contains(word);
     }
 
+    @SuppressWarnings("unused")
+    private double cosine(double[] vec1, double[] vec2)
+    {
+        double d = 0;
+        for (int a = 0; a < model.layerSize; a++) {
+            // NaN bug in loading
+            if (Double.isNaN(vec1[a]) || Double.isNaN(vec2[a]))
+                continue;
+            d += vec2[a] * vec1[a];
+        }
+        return d;
+    }
+
+    @SuppressWarnings("unused")
+    private double[] difference(double[] vec1, double[] vec2)
+    {
+        double[] diff = new double[model.layerSize];
+        for (int p = 0; p < model.layerSize; p++) {
+            diff[p] = vec1[p] - vec2[p];
+        }
+        return diff;
+    }
+
+    /**
+     * @return Vector mean
+     */
+    private double[] mean(double[][] vectors)
+    {
+        double[] mean = new double[model.layerSize];
+        for (int p = 0; p < model.layerSize; p++) {
+            double sum = 0;
+            int card = 0;
+            for (int v = 0; v < vectors.length; v++) {
+                // skip NaN (infinity ?)
+                if (Double.isNaN(vectors[v][p]))
+                    continue;
+                sum += vectors[v][p];
+                card++;
+            }
+            if (card == 0) continue;
+            mean[p] = sum / card;
+        }
+        return mean;
+    }
+
     /**
      * 
      * @param words
@@ -36,12 +81,21 @@ public class VecSearch
      */
     public Edge[] sims(final String[] words, final int limit) throws UnknownWordException
     {
-        float[][] vectors = new float[words.length][];
-        for (int v = 0; v < words.length; v++) {
-            vectors[v] = vector(words[v]);
+        double[] query;
+        if (words.length == 0) {
+            return null;
         }
-        float[] mean = mean(vectors);
-        Edge[] edges = sims(mean, limit);
+        else if (words.length == 1) {
+            query = vector(words[0]);
+        }
+        else {
+            double[][] vectors = new double[words.length][];
+            for (int v = 0; v < words.length; v++) {
+                vectors[v] = vector(words[v]);
+            }
+            query = mean(vectors);
+        }
+        Edge[] edges = sims(query, limit);
         return edges;
     }
 
@@ -52,7 +106,7 @@ public class VecSearch
      * @param limit
      * @return
      */
-    public Edge[] sims(final float[] vec, int limit) 
+    public Edge[] sims(final double[] vec, int limit) 
     {
         // the top collector
         Top<Edge> top = new Top<>(Edge.class, limit);
@@ -64,17 +118,20 @@ public class VecSearch
         }
         // ensure source vector has no NaN
         for(int node = 0; node < model.layerSize; node ++) {
-            if (Float.isNaN(vec[node])) vec[node] = 0;
+            if (Double.isNaN(vec[node])) vec[node] = 0;
         }
-        final FloatBuffer vectors = model.vectors.duplicate();
+        final DoubleBuffer vectors = model.vectors.duplicate();
         for (int wordId = 0; wordId < model.vocab.length; wordId++) {
             // calculate cosine distance
             double score = 0;
             for(int node = 0; node < model.layerSize; node ++) {
-                final float d2 = vectors.get();
-                if (Float.isNaN(d2)) continue;
-                score += vec[node] * d2;
+                final double d2 = vectors.get();
+                if (Double.isNaN(d2)) continue;
+                score += vec[node] * d2; // cosine
+                // score += Math.abs(vec[node] - d2); // manhattan, no acuracy
+                // final double diff = vec[node] - d2; score += diff*diff; // euclidian
             }
+            // score = Math.sqrt(score); // euclidian
             if (!top.isInsertable(score)) continue;
             top.insert(score).targetId(wordId).score(score);
         }
@@ -85,7 +142,7 @@ public class VecSearch
         return edges;
     }
 
-    private float[] vector(final String word) throws UnknownWordException
+    private double[] vector(final String word) throws UnknownWordException
     {
         final Integer wordId = model.wordId(word);
         if (wordId == null) {
@@ -93,53 +150,11 @@ public class VecSearch
         }
         int position = wordId * model.layerSize;
         // buffers' position, limit, and mark values will beindependent.
-        final FloatBuffer vectors = model.vectors.duplicate();
-        float[] result = new float[model.layerSize];
+        final DoubleBuffer vectors = model.vectors.duplicate();
+        double[] result = new double[model.layerSize];
         vectors.position(position);
         vectors.get(result);
         return result;
-    }
-
-    private double cosine(float[] vec1, float[] vec2)
-    {
-        double d = 0;
-        for (int a = 0; a < model.layerSize; a++) {
-            // NaN bug in loading
-            if (Float.isNaN(vec1[a]) || Float.isNaN(vec2[a]))
-                continue;
-            d += vec2[a] * vec1[a];
-        }
-        return d;
-    }
-
-    /** @return Vector difference from v1 to v2 */
-    private float[] difference(float[] v1, float[] v2)
-    {
-        float[] diff = new float[model.layerSize];
-        for (int i = 0; i < model.layerSize; i++)
-            diff[i] = v1[i] - v2[i];
-        return diff;
-    }
-
-    /**
-     * @return Vector mean
-     */
-    private float[] mean(float[][] vectors)
-    {
-        float[] mean = new float[model.layerSize];
-        for (int p = 0; p < model.layerSize; p++) {
-            double sum = 0;
-            int card = 0;
-            for (int v = 0; v < vectors.length; v++) {
-                // skip NaN (infinity ?)
-                if (Float.isNaN(vectors[v][p]))
-                    continue;
-                sum += vectors[v][p];
-                card++;
-            }
-            mean[p] = (float)(sum / card);
-        }
-        return mean;
     }
 
     /**

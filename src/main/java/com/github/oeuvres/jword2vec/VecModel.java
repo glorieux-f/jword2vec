@@ -4,6 +4,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.ref.Cleaner;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.DoubleBuffer;
@@ -12,16 +15,11 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.primitives.Doubles;
+
 
 /**
  * Represents the Word2Vec model, containing vectors for each word
@@ -30,6 +28,12 @@ import com.google.common.primitives.Doubles;
  */
 public class VecModel
 {
+    /** Size of a float number in bytes */
+    static final private int FLOAT_BYTES = 4;
+    /** Size of a double number in bytes */
+    static final private int DOUBLE_BYTES = 8;
+    /** Size of a point number in bytes, maybe 8 for double or 4 for float */
+    static final private int POINT_BYTES = DOUBLE_BYTES;
     /** For slicing big MappedByteBuffer https://blog.vanillajava.blog/2011/12/using-memory-mapped-file-for-huge.html */
     static private final long ONE_GB = 1024 * 1024 * 1024;
     /** To get wordId by word */
@@ -39,7 +43,7 @@ public class VecModel
     /** Size of vectors */
     protected final int layerSize;
     /** File mapped vectors */
-    final FloatBuffer vectors;
+    final DoubleBuffer vectors;
     
     public boolean contains(String word) {
         return word4id.containsKey(word);
@@ -49,7 +53,7 @@ public class VecModel
         return word4id.get(word);
     }
 
-    VecModel(final String[] vocab, int layerSize, FloatBuffer vectors)
+    VecModel(final String[] vocab, int layerSize, DoubleBuffer vectors)
     {
         this.vocab = vocab;
         this.layerSize = layerSize;
@@ -60,9 +64,9 @@ public class VecModel
         }
     }
 
-    VecModel(final String[] vocab, int layerSize, float[] vectors)
+    VecModel(final String[] vocab, int layerSize, double[] vectors)
     {
-        this(vocab, layerSize, FloatBuffer.wrap(vectors));
+        this(vocab, layerSize, DoubleBuffer.wrap(vectors));
     }
 
 
@@ -91,15 +95,24 @@ public class VecModel
     /**
      * @return {@link VecModel} created from the binary representation output
      *         by the open source C version of word2vec using the given byte order.
+     * @throws SecurityException 
+     * @throws NoSuchMethodException 
+     * @throws InvocationTargetException 
+     * @throws IllegalAccessException 
      */
     public static VecModel fromBinFile(File file, ByteOrder byteOrder) throws IOException
     {
-    
-        try (final FileInputStream fis = new FileInputStream(file);) {
+        String[] vocab;
+        DoubleBuffer vectors;
+        final int layerSize;
+        MappedByteBuffer binBuffer = null; // release to be forces
+        try (
+            final FileInputStream fis = new FileInputStream(file);
             final FileChannel channel = fis.getChannel();
-            MappedByteBuffer sourceBuffer = channel.map(FileChannel.MapMode.READ_ONLY, 0,
+        ){
+            binBuffer = channel.map(FileChannel.MapMode.READ_ONLY, 0,
                     Math.min(channel.size(), Integer.MAX_VALUE));
-            sourceBuffer.order(byteOrder);
+            binBuffer.order(byteOrder);
             int bufferCount = 1;
             // Java's NIO only allows memory-mapping up to 2GB. To work around this problem,
             // we re-map
@@ -108,10 +121,10 @@ public class VecModel
             // we've already skipped. That's what this is for.
     
             StringBuilder sb = new StringBuilder();
-            char c = (char) sourceBuffer.get();
+            char c = (char) binBuffer.get();
             while (c != '\n') {
                 sb.append(c);
-                c = (char) sourceBuffer.get();
+                c = (char) binBuffer.get();
             }
             String firstLine = sb.toString();
             int index = firstLine.indexOf(' ');
@@ -126,49 +139,62 @@ public class VecModel
             }
     
             final int vocabSize = Integer.parseInt(firstLine.substring(0, index));
-            final int layerSize = Integer.parseInt(firstLine.substring(index + 1));
+            layerSize = Integer.parseInt(firstLine.substring(index + 1));
     
-            String[] vocab = new String[vocabSize];
-            FloatBuffer vectors = ByteBuffer.allocateDirect(vocabSize * layerSize * 4).asFloatBuffer();
+            vocab = new String[vocabSize];
+            vectors = ByteBuffer.allocateDirect(vocabSize * layerSize * POINT_BYTES).asDoubleBuffer();
     
-            final float[] sourceVec = new float[layerSize];
+            final float[] binVec = new float[layerSize];
             // https://github.com/medallia/Word2VecJava/issues/44
             // bytes instead of chars
             byte[] buff = new byte[1024];
             for (int lineno = 0; lineno < vocabSize; lineno++) {
                 // read vocab
                 int bpos = 0;
-                byte b = sourceBuffer.get();
+                byte b = binBuffer.get();
                 while (b != ' ') {
                     // ignore newlines in front of words (some binary files have newline,
                     // some don't)
                     if (b != '\n') {
                         buff[bpos++] = b;
                     }
-                    b = sourceBuffer.get();
+                    b = binBuffer.get();
                 }
                 vocab[lineno] = new String(buff, 0, bpos, "UTF-8");
-                vectors.put(lineno * layerSize, sourceBuffer.asFloatBuffer(), 0, layerSize);
-                sourceBuffer.position(sourceBuffer.position() + 4 * layerSize);
+                // read float vector from model, and load it as double for memory
+                final FloatBuffer floatBuffer = binBuffer.asFloatBuffer();
+                floatBuffer.get(binVec);
+                for (int i = 0; i < binVec.length; ++i) {
+                    vectors.put(lineno * layerSize + i, binVec[i]);
+                }
+                
+                
+                binBuffer.position(binBuffer.position() + FLOAT_BYTES * layerSize);
     
     
                 // remap file
-                if (sourceBuffer.position() > ONE_GB) {
-                    final int newPosition = (int) (sourceBuffer.position() - ONE_GB);
+                if (binBuffer.position() > ONE_GB) {
+                    final int newPosition = (int) (binBuffer.position() - ONE_GB);
                     final long size = Math.min(channel.size() - ONE_GB * bufferCount, Integer.MAX_VALUE);
-                    sourceBuffer = channel.map(FileChannel.MapMode.READ_ONLY, ONE_GB * bufferCount, size);
-                    sourceBuffer.order(byteOrder);
-                    sourceBuffer.position(newPosition);
+                    binBuffer = channel.map(FileChannel.MapMode.READ_ONLY, ONE_GB * bufferCount, size);
+                    binBuffer.order(byteOrder);
+                    binBuffer.position(newPosition);
                     bufferCount += 1;
                 }
             }
-    
-            return new VecModel(
-                vocab, 
-                layerSize, 
-                vectors
-            );
+            binBuffer.clear();
         }
+        // 
+        finally {
+            if (binBuffer != null) {
+                binBuffer.clear();
+            }
+        }
+        return new VecModel(
+            vocab, 
+            layerSize, 
+            vectors
+        );
     }
 
     /**
@@ -187,7 +213,6 @@ public class VecModel
      * @return {@link VecModel} from the lines of the file in the text output
      *         format of the Word2Vec C open source project.
      */
-    @VisibleForTesting
     static VecModel fromTextFile(String filename, List<String> lines) throws IOException
     {
         int vocabSize = Integer.parseInt(lines.get(0).split(" ")[0]);
@@ -196,7 +221,7 @@ public class VecModel
         }
         int layerSize = Integer.parseInt(lines.get(0).split(" ")[1]);
         String[] vocab = new String[vocabSize];
-        float[] vectors = new float[vocabSize * layerSize];
+        double[] vectors = new double[vocabSize * layerSize];
         for (int wordId = 0; wordId < vocabSize; wordId++) {
             String[] values = lines.get(wordId + 1).split(" ");
             if (layerSize != values.length - 1) {
@@ -205,7 +230,7 @@ public class VecModel
             vocab[wordId] = values[0];
             final int wordIndex = wordId * layerSize;
             for (int node = 0; node < layerSize; node++) {
-                vectors[wordIndex + node] = Float.parseFloat(values[node + 1]);
+                vectors[wordIndex + node] = Double.parseDouble(values[node + 1]);
             }
         }
         
@@ -227,18 +252,19 @@ public class VecModel
         final String header = String.format("%d %d\n", vocab.length, layerSize);
         out.write(header.getBytes(cs));
     
-        final float[] vector = new float[layerSize];
-        final ByteBuffer buffer = ByteBuffer.allocate(4 * layerSize);
-        buffer.order(ByteOrder.LITTLE_ENDIAN); // The C version uses this byte order.
+        final double[] vector = new double[layerSize];
+        final ByteBuffer binBuffer = ByteBuffer.allocate(FLOAT_BYTES * layerSize);
+        binBuffer.order(ByteOrder.LITTLE_ENDIAN); // The C version uses this byte order.
         for (int wordId = 0; wordId < vocab.length; ++wordId) {
             out.write(String.format("%s ", vocab[wordId]).getBytes(cs));
     
             vectors.position(wordId * layerSize);
             vectors.get(vector);
-            buffer.clear();
+            
+            binBuffer.clear();
             for (int j = 0; j < layerSize; ++j)
-                buffer.putFloat((float) vector[j]);
-            out.write(buffer.array());
+                binBuffer.putFloat((float) vector[j]);
+            out.write(binBuffer.array());
     
             out.write('\n');
         }

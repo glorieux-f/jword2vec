@@ -13,8 +13,9 @@ public class DistanceTest
     static void distance() throws IOException, UnknownWordException
     {
 
-        File modelFile = new File(DistanceTest.class.getResource("rougemont.bin").getFile());
+        // File modelFile = new File(DistanceTest.class.getResource("rougemont.bin").getFile());
         // File modelFile = new File("D:/code/ddr_lab/src/main/webapp/rougemont.bin");
+        File modelFile = new File("D:/code/word2vec/piaget.bin");
         VecModel model = VecModel.fromBinFile(modelFile);
         VecSearch searcher =  model.forSearch();
         
